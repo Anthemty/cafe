@@ -1,0 +1,15 @@
+# Rust build artifacts
+/target
+/**/target
+
+# macOS
+.DS_Store
+
+# Built app bundle and generated icon assets
+/dist
+/resources/logo_1024.png
+
+# Local editor files
+.idea/
+.vscode/
+*.iml
