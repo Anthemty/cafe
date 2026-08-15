@@ -10,6 +10,35 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+/// UI language. Defaults to English; a manual selection in the menu overrides
+/// and persists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Lang {
+    #[default]
+    En,
+    Zh,
+}
+
+impl Lang {
+    /// Cycle for the menu toggle: En → Zh → En.
+    pub fn next(self) -> Lang {
+        match self {
+            Lang::En => Lang::Zh,
+            Lang::Zh => Lang::En,
+        }
+    }
+
+    /// Label shown on the Language menu item (always shows the OTHER language's
+    /// name, i.e. what you'd switch to).
+    pub fn toggle_label(self) -> &'static str {
+        match self {
+            Lang::En => "语言:中文",
+            Lang::Zh => "Language: English",
+        }
+    }
+}
+
 /// Which level of sleep prevention is active.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,20 +56,26 @@ impl Mode {
     pub const ALL: [Mode; 3] = [Mode::Off, Mode::IdleOnly, Mode::IdleAndDisplay];
 
     /// Human-readable label for the menu.
-    pub fn label(self) -> &'static str {
-        match self {
-            Mode::Off => "Off",
-            Mode::IdleOnly => "Idle Only",
-            Mode::IdleAndDisplay => "Idle + Display",
+    pub fn label(self, lang: Lang) -> &'static str {
+        match (self, lang) {
+            (Mode::Off, Lang::En) => "Off",
+            (Mode::Off, Lang::Zh) => "关闭",
+            (Mode::IdleOnly, Lang::En) => "Idle Only",
+            (Mode::IdleOnly, Lang::Zh) => "仅防休眠",
+            (Mode::IdleAndDisplay, Lang::En) => "Idle + Display",
+            (Mode::IdleAndDisplay, Lang::Zh) => "防休眠 + 常亮",
         }
     }
 
     /// Short tooltip describing the effect.
-    pub fn tooltip(self) -> &'static str {
-        match self {
-            Mode::Off => "Sleep prevention off",
-            Mode::IdleOnly => "Preventing idle sleep (display may dim)",
-            Mode::IdleAndDisplay => "Preventing idle sleep and keeping display on",
+    pub fn tooltip(self, lang: Lang) -> &'static str {
+        match (self, lang) {
+            (Mode::Off, Lang::En) => "Sleep prevention off",
+            (Mode::Off, Lang::Zh) => "未开启防休眠",
+            (Mode::IdleOnly, Lang::En) => "Preventing idle sleep (display may dim)",
+            (Mode::IdleOnly, Lang::Zh) => "防止系统休眠(屏幕可能变暗)",
+            (Mode::IdleAndDisplay, Lang::En) => "Preventing idle sleep and keeping display on",
+            (Mode::IdleAndDisplay, Lang::Zh) => "防止系统休眠且屏幕常亮",
         }
     }
 
@@ -71,17 +106,49 @@ impl Default for Mode {
 }
 
 /// On-disk config, persisted to `~/Library/Application Support/cafe/config.json`.
+///
+/// Fields added after 0.1.0 use `#[serde(default)]` so older config files
+/// (missing the new keys) still deserialize instead of being wiped by the
+/// corrupt-file fallback.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     /// The last manually-selected mode. Restored on launch so a "set and
     /// forget it" workflow survives restarts (the icon always shows the state).
+    #[serde(default)]
     pub last_mode: Mode,
     /// Whether the "Auto: watch agents" toggle is on.
+    #[serde(default)]
     pub auto_watch: bool,
+    /// UI language (menu/tooltip strings).
+    #[serde(default)]
+    pub lang: Lang,
 }
 
-/// Timer presets offered in the "Keep awake for…" submenu: (minutes, label).
-pub const TIMER_PRESETS: &[(u64, &str)] = &[(30, "30 Minutes"), (60, "1 Hour"), (120, "2 Hours")];
+/// Timer preset durations in minutes. Labels are per-language (see
+/// `timer_label`).
+pub const TIMER_PRESETS: &[u64] = &[30, 60, 120];
+
+/// Menu label for a timer preset in the given language.
+pub fn timer_label(minutes: u64, lang: Lang) -> String {
+    match (minutes, lang) {
+        (30, Lang::En) => "30 Minutes".into(),
+        (30, Lang::Zh) => "30 分钟".into(),
+        (60, Lang::En) => "1 Hour".into(),
+        (60, Lang::Zh) => "1 小时".into(),
+        (120, Lang::En) => "2 Hours".into(),
+        (120, Lang::Zh) => "2 小时".into(),
+        (other, Lang::En) => format!("{other} Minutes"),
+        (other, Lang::Zh) => format!("{other} 分钟"),
+    }
+}
+
+/// Countdown suffix for the status tooltip, e.g. "42 min left" / "剩余 42 分钟".
+pub fn countdown_text(minutes_left: u64, lang: Lang) -> String {
+    match lang {
+        Lang::En => format!("{minutes_left} min left"),
+        Lang::Zh => format!("剩余 {minutes_left} 分钟"),
+    }
+}
 
 /// Where the config file lives: `~/Library/Application Support/cafe/config.json`.
 fn config_path() -> Option<PathBuf> {
@@ -205,9 +272,19 @@ mod tests {
         assert_eq!(Mode::IdleOnly.caffeinate_args(), Some(&["-i"][..]));
         assert_eq!(Mode::IdleAndDisplay.caffeinate_args(), Some(&["-di"][..]));
         for m in Mode::ALL {
-            assert!(!m.label().is_empty());
-            assert!(!m.tooltip().is_empty());
+            for lang in [Lang::En, Lang::Zh] {
+                assert!(!m.label(lang).is_empty());
+                assert!(!m.tooltip(lang).is_empty());
+            }
         }
+    }
+
+    #[test]
+    fn lang_cycles_and_labels() {
+        assert_eq!(Lang::En.next(), Lang::Zh);
+        assert_eq!(Lang::Zh.next(), Lang::En);
+        assert_eq!(Lang::En.toggle_label(), "语言:中文");
+        assert_eq!(Lang::Zh.toggle_label(), "Language: English");
     }
 
     #[test]
@@ -222,6 +299,7 @@ mod tests {
         let cfg = Config {
             last_mode: Mode::IdleAndDisplay,
             auto_watch: true,
+            lang: Lang::Zh,
         };
         let s = serde_json::to_string(&cfg).unwrap();
         let back: Config = serde_json::from_str(&s).unwrap();
@@ -233,11 +311,21 @@ mod tests {
         let cfg = Config {
             last_mode: Mode::IdleOnly,
             auto_watch: false,
+            lang: Lang::En,
         };
         let s = serde_json::to_string(&cfg).unwrap();
         assert!(s.contains("\"last_mode\""));
         assert!(s.contains("\"auto_watch\""));
+        assert!(s.contains("\"lang\""));
         assert!(s.contains("\"idle_only\""));
+    }
+
+    #[test]
+    fn missing_lang_field_defaults_to_english() {
+        // Old configs (v0.2.0) have no "lang" — serde default keeps them valid.
+        let cfg: Config =
+            serde_json::from_str("{\"last_mode\":\"off\",\"auto_watch\":false}").unwrap();
+        assert_eq!(cfg.lang, Lang::En);
     }
 
     #[test]
@@ -253,11 +341,21 @@ mod tests {
 
     #[test]
     fn timer_presets_are_sorted_and_labeled() {
-        let mut mins: Vec<u64> = TIMER_PRESETS.iter().map(|(m, _)| *m).collect();
+        let mut mins = TIMER_PRESETS.to_vec();
         let mut sorted = mins.clone();
         sorted.sort_unstable();
         mins.sort_unstable();
         assert_eq!(mins, sorted);
-        assert!(TIMER_PRESETS.iter().all(|(_, l)| !l.is_empty()));
+        for &m in TIMER_PRESETS {
+            for lang in [Lang::En, Lang::Zh] {
+                assert!(!timer_label(m, lang).is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn countdown_text_localizes() {
+        assert_eq!(countdown_text(42, Lang::En), "42 min left");
+        assert_eq!(countdown_text(42, Lang::Zh), "剩余 42 分钟");
     }
 }

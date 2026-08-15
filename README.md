@@ -33,6 +33,9 @@ your menu bar.
   CLI is running (`claude`, `codex`, `aider`, `goose`, `gemini`, `qwen`,
   `cursor-agent`, `opencode`, `copilot`), disarms when they exit.
 - **Launch at Login** — plain toggle in the menu (LaunchAgent-based).
+- **中英双语** — “语言：中文 / Language: English” 菜单项一键切换中英文 UI
+  (菜单、tooltip、倒计时)，选择持久化。Bilingual menu/tooltip/countdown with a
+  one-click toggle; the choice persists across launches.
 - **Color-coded icon** — the coffee cup (SF Symbol `cup.and.saucer.fill`) is
   tinted via a hierarchical symbol configuration, so the color is always visible
   and reliable across macOS versions (including macOS 26 / Tahoe).

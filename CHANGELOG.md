@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-16
+
+### Added
+- **中英双语 UI** — 菜单里新增“语言：中文 / Language: English”切换项，点一下即时
+  切换全部菜单标题、tooltip 与倒计时文案；选择持久化，重启保留。老版 config
+  缺 `lang` 字段会安全回退到 English（已加 `#[serde(default)]` 并加测试覆盖）。
+- 翻译范围：模式名、定时预设、登录项、自动监测项、语言项、退出项、状态 tooltip、
+  倒计时后缀。
+
+### Fixed
+- 新增 config 字段不再让旧版 config 反序列化失败后被整体重置——v0.1.0 的
+  `last_mode` 与 v0.2.0 的 `auto_watch` 现在都带 `#[serde(default)]`，跨版本升级
+  保留用户偏好。
+
 ## [0.2.0] - 2026-08-15
 
 ### Added
@@ -53,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Supervisor` guarantees no leaked `caffeinate` process: every mode switch and app exit (including `Drop`) kills + reaps the child.
 - `.app` bundle packaging via `make-app.sh`, including a generated coffee-cup app icon (`resources/AppIcon.icns`).
 
-[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Anthemty/cafe/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Anthemty/cafe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Anthemty/cafe/releases/tag/v0.1.0

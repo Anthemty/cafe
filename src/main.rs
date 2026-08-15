@@ -33,7 +33,8 @@ mod state;
 mod supervisor;
 
 use state::{
-    agents_running, load_config, save_config, set_login_item, Config, Mode, TIMER_PRESETS,
+    agents_running, countdown_text, load_config, save_config, set_login_item, timer_label, Config,
+    Lang, Mode, TIMER_PRESETS,
 };
 use supervisor::Supervisor;
 
@@ -45,6 +46,7 @@ const TAG_MODE_BASE: TagInt = 100; // 100..=102 → modes
 const TAG_TIMER_BASE: TagInt = 200; // 200+i → TIMER_PRESETS[i]
 const TAG_LOGIN_ITEM: TagInt = 300;
 const TAG_AUTO_WATCH: TagInt = 301;
+const TAG_LANG_ITEM: TagInt = 302;
 
 fn tag_for(mode: Mode) -> TagInt {
     TAG_MODE_BASE
@@ -77,6 +79,10 @@ struct AppState {
     login_item: Option<Retained<NSMenuItem>>,
     /// The "Auto: watch agents" item.
     auto_item: Option<Retained<NSMenuItem>>,
+    /// The language toggle item (title always shows the target language).
+    lang_item: Option<Retained<NSMenuItem>>,
+    /// The Quit item (localized title).
+    quit_item: Option<Retained<NSMenuItem>>,
     /// Last caffeinate spawn error, surfaced in the menu when set.
     last_spawn_error: Option<String>,
     /// Countdown deadline for timed sessions (Interval since 2001-01-01).
@@ -88,6 +94,8 @@ struct AppState {
     agents_were_running: bool,
     /// Whether auto-watch is armed (config-persisted).
     auto_watch: bool,
+    /// UI language (config-persisted).
+    lang: Lang,
     /// Icon cache (renders each mode icon once).
     icons: icon::IconCache,
     /// Config as last loaded/saved.
@@ -105,12 +113,15 @@ impl AppState {
             timer_items: Vec::new(),
             login_item: None,
             auto_item: None,
+            lang_item: None,
+            quit_item: None,
             last_spawn_error: None,
             deadline: None,
             countdown_timer: None,
             agent_timer: None,
             agents_were_running: false,
             auto_watch: config.auto_watch,
+            lang: config.lang,
             icons: icon::IconCache::new(),
             config,
         }
@@ -120,6 +131,7 @@ impl AppState {
     fn persist(&mut self) {
         self.config.last_mode = self.mode;
         self.config.auto_watch = self.auto_watch;
+        self.config.lang = self.lang;
         save_config(&self.config).ok();
     }
 
@@ -229,8 +241,10 @@ impl AppState {
     }
 
     /// Sync every UI surface with current state: icon, tooltip, check marks,
-    /// timer labels, error line.
+    /// localized titles, error line.
     fn refresh_ui(&mut self, mtm: MainThreadMarker) {
+        let lang = self.lang;
+
         // Icon + tooltip.
         if let Some(item) = &self.status_item {
             if let Some(button) = item.button(mtm) {
@@ -241,9 +255,11 @@ impl AppState {
                 button.setToolTip(Some(&NSString::from_str(&tip)));
             }
         }
-        // Mode check marks.
+
+        // Localized titles for the dynamic items.
         for (i, m) in Mode::ALL.iter().enumerate() {
             if let Some(item) = self.mode_items.get(i) {
+                item.setTitle(&NSString::from_str(m.label(lang)));
                 item.setState(if *m == self.mode {
                     NSControlStateValueOn
                 } else {
@@ -251,11 +267,48 @@ impl AppState {
                 });
             }
         }
+        for (i, item) in self.timer_items.iter().enumerate() {
+            item.setTitle(&NSString::from_str(&timer_label(TIMER_PRESETS[i], lang)));
+        }
+        if let Some(item) = &self.login_item {
+            let title = match lang {
+                Lang::En => "Launch at Login",
+                Lang::Zh => "登录时启动",
+            };
+            item.setTitle(&NSString::from_str(title));
+            item.setState(if state::login_item_enabled() {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+        }
+        if let Some(item) = &self.auto_item {
+            let title = match lang {
+                Lang::En => "Auto: Watch Agents",
+                Lang::Zh => "自动:监测 Agent",
+            };
+            item.setTitle(&NSString::from_str(title));
+            item.setState(if self.auto_watch {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+        }
+        if let Some(item) = &self.lang_item {
+            item.setTitle(&NSString::from_str(lang.toggle_label()));
+        }
+        if let Some(item) = &self.quit_item {
+            let title = match lang {
+                Lang::En => "Quit cafe",
+                Lang::Zh => "退出 cafe",
+            };
+            item.setTitle(&NSString::from_str(title));
+        }
 
         // Timer items: checked only while a matching countdown is live.
         for (i, item) in self.timer_items.iter().enumerate() {
             let on = self.deadline.is_some_and(|d| {
-                let (mins, _) = TIMER_PRESETS[i];
+                let mins = TIMER_PRESETS[i];
                 (d - NSDate::now().timeIntervalSinceReferenceDate()) as u64 / 60 == mins
             });
             item.setState(if on {
@@ -264,33 +317,22 @@ impl AppState {
                 NSControlStateValueOff
             });
         }
+    }
 
-        // Login item check state.
-        if let Some(item) = &self.login_item {
-            item.setState(if state::login_item_enabled() {
-                NSControlStateValueOn
-            } else {
-                NSControlStateValueOff
-            });
-        }
-
-        // Auto-watch check state.
-        if let Some(item) = &self.auto_item {
-            item.setState(if self.auto_watch {
-                NSControlStateValueOn
-            } else {
-                NSControlStateValueOff
-            });
-        }
+    /// Switch UI language (menu toggle), then rebuild all localized strings.
+    fn apply_lang(&mut self, mtm: MainThreadMarker) {
+        self.lang = self.lang.next();
+        self.refresh_ui(mtm);
+        self.persist();
     }
 
     /// Status tooltip with countdown, if any.
     fn status_tooltip(&self) -> String {
-        let base = self.mode.tooltip();
+        let base = self.mode.tooltip(self.lang);
         if let Some(d) = self.deadline {
             let now = NSDate::now().timeIntervalSinceReferenceDate();
             let remain = ((d - now).max(0.0) / 60.0).ceil() as u64;
-            return format!("{base} — {remain} min left");
+            return format!("{base} — {}", countdown_text(remain, self.lang));
         }
         base.to_string()
     }
@@ -352,12 +394,13 @@ define_class!(
             } else if tag >= TAG_TIMER_BASE && tag < TAG_TIMER_BASE + TIMER_PRESETS.len() as TagInt
             {
                 let i = (tag - TAG_TIMER_BASE) as usize;
-                let (mins, _) = TIMER_PRESETS[i];
-                state.borrow_mut().apply_timer(mins, mtm);
+                state.borrow_mut().apply_timer(TIMER_PRESETS[i], mtm);
             } else if tag == TAG_LOGIN_ITEM {
                 state.borrow_mut().toggle_login_item(mtm);
             } else if tag == TAG_AUTO_WATCH {
                 state.borrow_mut().toggle_auto_watch(mtm);
+            } else if tag == TAG_LANG_ITEM {
+                state.borrow_mut().apply_lang(mtm);
             }
         }
 
@@ -445,9 +488,15 @@ struct MenuParts {
     timer_items: Vec<Retained<NSMenuItem>>,
     login_item: Retained<NSMenuItem>,
     auto_item: Retained<NSMenuItem>,
+    lang_item: Retained<NSMenuItem>,
+    quit_item: Retained<NSMenuItem>,
 }
 
-fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> MenuParts {
+fn build_menu(
+    controller: &Retained<CafeController>,
+    lang: Lang,
+    mtm: MainThreadMarker,
+) -> MenuParts {
     use objc2::runtime::AnyObject;
 
     let menu = NSMenu::new(mtm);
@@ -470,7 +519,7 @@ fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> M
     // Mode items.
     let mut mode_items = Vec::with_capacity(Mode::ALL.len());
     for mode in Mode::ALL {
-        let item = action_item(mode.label(), tag_for(mode), mtm);
+        let item = action_item(mode.label(lang), tag_for(mode), mtm);
         unsafe {
             item.setTarget(Some(controller_ref));
             item.setAction(Some(sel!(selectAction:)));
@@ -484,8 +533,8 @@ fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> M
 
     // Timed sessions.
     let mut timer_items = Vec::with_capacity(TIMER_PRESETS.len());
-    for (i, (_mins, label)) in TIMER_PRESETS.iter().enumerate() {
-        let item = action_item(label, TAG_TIMER_BASE + i as TagInt, mtm);
+    for (i, mins) in TIMER_PRESETS.iter().enumerate() {
+        let item = action_item(&timer_label(*mins, lang), TAG_TIMER_BASE + i as TagInt, mtm);
         unsafe {
             item.setTarget(Some(controller_ref));
             item.setAction(Some(sel!(selectAction:)));
@@ -498,7 +547,11 @@ fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> M
     menu.addItem(&NSMenuItem::separatorItem(mtm));
 
     // Launch at login.
-    let login_item = action_item("Launch at Login", TAG_LOGIN_ITEM, mtm);
+    let login_title = match lang {
+        Lang::En => "Launch at Login",
+        Lang::Zh => "登录时启动",
+    };
+    let login_item = action_item(login_title, TAG_LOGIN_ITEM, mtm);
     unsafe {
         login_item.setTarget(Some(controller_ref));
         login_item.setAction(Some(sel!(selectAction:)));
@@ -506,23 +559,40 @@ fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> M
     menu.addItem(&login_item);
 
     // Auto: watch agents.
-    let auto_item = action_item("Auto: Watch Agents", TAG_AUTO_WATCH, mtm);
+    let auto_title = match lang {
+        Lang::En => "Auto: Watch Agents",
+        Lang::Zh => "自动:监测 Agent",
+    };
+    let auto_item = action_item(auto_title, TAG_AUTO_WATCH, mtm);
     unsafe {
         auto_item.setTarget(Some(controller_ref));
         auto_item.setAction(Some(sel!(selectAction:)));
     }
     menu.addItem(&auto_item);
 
+    // Language toggle. The title always names the language you'd switch TO,
+    // so it stays self-explanatory in either language.
+    let lang_item = action_item(lang.toggle_label(), TAG_LANG_ITEM, mtm);
+    unsafe {
+        lang_item.setTarget(Some(controller_ref));
+        lang_item.setAction(Some(sel!(selectAction:)));
+    }
+    menu.addItem(&lang_item);
+
     menu.addItem(&NSMenuItem::separatorItem(mtm));
 
     // Quit.
-    let quit = NSMenuItem::new(mtm);
-    quit.setTitle(&NSString::from_str("Quit cafe"));
+    let quit_title = match lang {
+        Lang::En => "Quit cafe",
+        Lang::Zh => "退出 cafe",
+    };
+    let quit_item = NSMenuItem::new(mtm);
+    quit_item.setTitle(&NSString::from_str(quit_title));
     unsafe {
-        quit.setTarget(Some(controller_ref));
-        quit.setAction(Some(sel!(quitAction:)));
+        quit_item.setTarget(Some(controller_ref));
+        quit_item.setAction(Some(sel!(quitAction:)));
     }
-    menu.addItem(&quit);
+    menu.addItem(&quit_item);
 
     menu.setDelegate(Some(delegate));
 
@@ -532,6 +602,8 @@ fn build_menu(controller: &Retained<CafeController>, mtm: MainThreadMarker) -> M
         timer_items,
         login_item,
         auto_item,
+        lang_item,
+        quit_item,
     }
 }
 
@@ -547,12 +619,13 @@ fn main() {
     let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
 
     let mut state = AppState::new();
+    let lang = state.lang;
 
     // Icon (color baked in per mode) + tooltip.
     if let Some(image) = state.icons.get(Mode::Off) {
         if let Some(button) = status_item.button(mtm) {
             button.setImage(Some(&image));
-            button.setToolTip(Some(&NSString::from_str(Mode::Off.tooltip())));
+            button.setToolTip(Some(&NSString::from_str(Mode::Off.tooltip(lang))));
         }
     }
 
@@ -560,12 +633,14 @@ fn main() {
     let controller = CafeController::new();
 
     // Menu.
-    let parts = build_menu(&controller, mtm);
+    let parts = build_menu(&controller, lang, mtm);
     state.status_item = Some(status_item);
     state.mode_items = parts.mode_items;
     state.timer_items = parts.timer_items;
     state.login_item = Some(parts.login_item);
     state.auto_item = Some(parts.auto_item);
+    state.lang_item = Some(parts.lang_item);
+    state.quit_item = Some(parts.quit_item);
 
     // Wire the status item's menu.
     state
