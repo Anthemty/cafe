@@ -11,8 +11,10 @@
 //! - `NSImage.withTintColor:` is an unrecognized selector on macOS 26 (Tahoe);
 //!   Apple removed it in favor of symbol configurations.
 //!
-//! The hierarchical-color configuration tints the symbol's layers from the
-//! given color, which is exactly the visible, deterministic result we want.
+//! The three icons are rendered once at startup and cached; switching modes is
+//! then a cheap pointer swap instead of a symbol re-render.
+
+use std::cell::RefCell;
 
 use objc2::rc::Retained;
 use objc2_app_kit::{NSColor, NSImage, NSImageSymbolConfiguration};
@@ -36,10 +38,9 @@ pub fn color_for_mode(mode: Mode) -> Retained<NSColor> {
     }
 }
 
-/// Build the status bar icon for a mode: the coffee symbol tinted with the
-/// mode color via a hierarchical symbol configuration. Returns `None` only if
-/// the SF Symbol is unavailable.
-pub fn image_for_mode(mode: Mode) -> Option<Retained<NSImage>> {
+/// Render the coffee symbol tinted with `color` via a hierarchical symbol
+/// configuration. Returns `None` only if the SF Symbol is unavailable.
+fn render(mode: Mode) -> Option<Retained<NSImage>> {
     let name = NSString::from_str(SYMBOL);
     let base = NSImage::imageWithSystemSymbolName_accessibilityDescription(
         &name,
@@ -52,4 +53,41 @@ pub fn image_for_mode(mode: Mode) -> Option<Retained<NSImage>> {
     // `None` if the configuration cannot be applied (in which case we fall
     // back to the base symbol — still a valid, displayable image).
     Some(base.imageWithSymbolConfiguration(&config).unwrap_or(base))
+}
+
+/// Cache of the three pre-rendered mode icons, built once on the main thread.
+pub struct IconCache {
+    icons: RefCell<[Option<Retained<NSImage>>; 3]>,
+}
+
+impl IconCache {
+    pub fn new() -> Self {
+        Self {
+            icons: RefCell::new([None, None, None]),
+        }
+    }
+
+    fn index(mode: Mode) -> usize {
+        match mode {
+            Mode::Off => 0,
+            Mode::IdleOnly => 1,
+            Mode::IdleAndDisplay => 2,
+        }
+    }
+
+    /// Get (rendering on first use) the icon for `mode`.
+    pub fn get(&self, mode: Mode) -> Option<Retained<NSImage>> {
+        let mut icons = self.icons.borrow_mut();
+        let idx = Self::index(mode);
+        if icons[idx].is_none() {
+            icons[idx] = render(mode);
+        }
+        icons[idx].clone()
+    }
+}
+
+impl Default for IconCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }

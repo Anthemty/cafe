@@ -15,8 +15,22 @@ DIST="$ROOT/dist"
 APP="$DIST/cafe.app"
 RES="$ROOT/resources"
 
-echo "==> Building release binary"
-cargo build --release
+echo "==> Building release binary (universal: aarch64 + x86_64)"
+if [[ "${CAFE_SKIP_UNIVERSAL:-0}" == "1" ]]; then
+    # Fallback: native arch only (e.g. CI runners without cross targets).
+    cargo build --release
+    cp target/release/cafe "$DIST/cafe-bin"
+else
+    rustup target list --installed | grep -q aarch64-apple-darwin || rustup target add aarch64-apple-darwin
+    rustup target list --installed | grep -q x86_64-apple-darwin || rustup target add x86_64-apple-darwin
+    mkdir -p "$DIST"
+    cargo build --release --target aarch64-apple-darwin
+    cargo build --release --target x86_64-apple-darwin
+    lipo -create \
+        target/aarch64-apple-darwin/release/cafe \
+        target/x86_64-apple-darwin/release/cafe \
+        -output "$DIST/cafe-bin"
+fi
 
 echo "==> Rendering app icon"
 mkdir -p "$RES"
@@ -82,7 +96,7 @@ iconutil -c icns "$ICONSET" -o "$ICNS"
 echo "==> Assembling bundle at $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$ROOT/target/release/cafe" "$APP/Contents/MacOS/cafe"
+cp "$DIST/cafe-bin" "$APP/Contents/MacOS/cafe"
 cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'

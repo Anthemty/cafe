@@ -1,6 +1,6 @@
 [package]
 name = "cafe"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A macOS menu bar keep-awake tool for agent coding sessions"
 license = "MIT"
@@ -20,6 +20,7 @@ objc2-foundation = { version = "0.3", features = ["NSString", "NSGeometry", "NSP
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSCell", "NSColor", "NSGraphics", "NSRunningApplication", "NSEvent", "NSWindow"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+global-hotkey = "0.8.0"
 
 [profile.release]
 opt-level = "z"

@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-15
+
+### Added
+- **Timed sessions** — "Keep awake for 30 min / 1 h / 2 h" menu items; the icon
+  tooltip shows the remaining time and the app auto-disarms at the deadline
+  (`caffeinate -t`).
+- **Global hotkey** — `Ctrl+Alt+C` cycles Off → Idle Only → Idle + Display from
+  anywhere.
+- **Auto: watch agents** — opt-in mode that arms sleep prevention (Idle +
+  Display) while a coding agent CLI is running (claude, codex, aider, goose,
+  gemini, qwen, cursor-agent, opencode, copilot) and disarms when they exit.
+  Polled every 5 s.
+- **Launch at Login** — menu toggle that installs/removes a LaunchAgent plist.
+- Menu now syncs liveness every time it opens: an externally killed caffeinate
+  is detected and the icon reverts to Off instead of lying.
+- CI (fmt + clippy + test on macOS & Linux) and tag-triggered Release workflow
+  that builds the universal `.app` automatically.
+
+### Changed
+- Binary is now **universal** (aarch64 + x86_64) — runs on Apple Silicon and
+  Intel Macs.
+- Spawned `caffeinate` passes `-w <cafe pid>`: even if cafe is SIGKILLed (no
+  `Drop` runs), caffeinate terminates itself — no orphaned sleep prevention.
+- Icons are rendered once and cached; switching modes no longer re-renders the
+  SF Symbol.
+- `last_mode` is again informational only; the config now also persists the
+  auto-watch preference.
+
+### Fixed
+- Menu item handles are captured at build time instead of being recovered by
+  index arithmetic, which silently broke if the menu layout changed.
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
@@ -21,5 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Supervisor` guarantees no leaked `caffeinate` process: every mode switch and app exit (including `Drop`) kills + reaps the child.
 - `.app` bundle packaging via `make-app.sh`, including a generated coffee-cup app icon (`resources/AppIcon.icns`).
 
-[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Anthemty/cafe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Anthemty/cafe/releases/tag/v0.1.0

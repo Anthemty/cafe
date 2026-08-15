@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release .app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build universal .app
+        env:
+          # CI has no display server for the Swift icon renderer's fallback
+          # path; sips/iconutil work headless, and NSImage renders offscreen.
+          CAFE_SKIP_UNIVERSAL: "0"
+        run: |
+          ./make-app.sh
+          cd dist
+          ditto -c -k --keepParent cafe.app cafe.app.zip
+
+      - name: Attach artifact summary
+        run: |
+          ls -lh dist/cafe.app.zip
+          shasum -a 256 dist/cafe.app.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/cafe.app.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false

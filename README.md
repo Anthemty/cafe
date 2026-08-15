@@ -26,15 +26,23 @@ your menu bar.
   | **Off** | — | gray | no sleep prevention |
   | **Idle Only** | `-i` | warm yellow | prevents idle system sleep; display may dim |
   | **Idle + Display** | `-di` | deep orange | prevents idle sleep **and** keeps the display on |
+- **Timed sessions** — keep awake for 30 min / 1 h / 2 h; the tooltip counts
+  down and the app disarms itself at the deadline.
+- **Global hotkey** — `Ctrl+Alt+C` cycles through the three modes from any app.
+- **Auto: watch agents** *(opt-in)* — arms Idle + Display while a coding agent
+  CLI is running (`claude`, `codex`, `aider`, `goose`, `gemini`, `qwen`,
+  `cursor-agent`, `opencode`, `copilot`), disarms when they exit.
+- **Launch at Login** — plain toggle in the menu (LaunchAgent-based).
 - **Color-coded icon** — the coffee cup (SF Symbol `cup.and.saucer.fill`) is
   tinted via a hierarchical symbol configuration, so the color is always visible
   and reliable across macOS versions (including macOS 26 / Tahoe).
 - **No leaked processes.** The `caffeinate` child is tracked and killed on every
-  mode change and on quit/panic (`Drop` guarantee).
-- **Starts off.** Always launches in `Off` for safety — you opt in each time.
-- **Remembers your last mode** in `~/Library/Application Support/cafe/config.json`
-  (for UX continuity; it is **not** auto-applied on launch).
+  mode change and on quit/panic (`Drop` guarantee). Spawned children also get
+  `-w <cafe pid>`, so even a `kill -9` of cafe cannot orphan sleep prevention.
+- **Honest UI.** Opening the menu re-checks the child; if someone killed
+  `caffeinate` externally, the icon reverts to Off instead of lying.
 - **Menu bar only.** Runs as an accessory — no Dock icon, no main window.
+- **Universal binary** — one `.app` for Apple Silicon and Intel Macs.
 
 ## Requirements
 
@@ -114,10 +122,9 @@ color) and trivial to toggle off.
 ## Roadmap
 
 Possible future additions (not yet implemented):
-- [ ] Launch at login
-- [ ] Global hotkey to toggle modes
-- [ ] Auto-detect running agent processes (Claude Code, Cursor, …) and arm automatically
-- [ ] Timer mode ("keep awake for the next 2 hours")
+- [ ] Configurable hotkey & agent watch-list
+- [ ] Homebrew tap
+- [ ] Signed/notarized builds
 
 ## Contributing
 
