@@ -10,14 +10,10 @@ env:
 
 jobs:
   check:
-    name: Test & Lint (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # cafe is macOS-only at runtime, but state.rs/supervisor.rs compile
-        # anywhere; keep a linux leg for the pure-Rust parts.
-        os: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    name: Test & Lint
+    # cafe is a macOS menu bar app (objc2/AppKit); it cannot compile on other
+    # platforms, so CI runs on macOS only.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -37,5 +33,4 @@ jobs:
         run: cargo test --all
 
       - name: Build (release)
-        if: matrix.os == 'macos-latest'
         run: cargo build --release
