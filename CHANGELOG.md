@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **多语种文档** — README 现有 7 个语言版本:English、简体中文、日本語、한국어、
-  Español、Français、Deutsch,顶部附语言切换导航;统一标语「让你的 Mac 不再
-  犯困,所以它叫 cafe / Keeps your Mac from dozing off — that's why it's
-  called cafe」。
+- **多语种文档** — README 现有 11 个语言版本:English、简体中文、繁體中文、
+  日本語、한국어、Español、Français、Deutsch、Italiano、Português (BR)、
+  Русский,顶部附语言切换导航;统一标语「让你的 Mac 不再犯困,所以它叫
+  cafe / Keeps your Mac from dozing off — that's why it's called cafe」。
 
 ## [0.3.0] - 2026-09-13
 
