@@ -26,12 +26,20 @@ your menu bar.
   | **Off** | — | gray | no sleep prevention |
   | **Idle Only** | `-i` | warm yellow | prevents idle system sleep; display may dim |
   | **Idle + Display** | `-di` | deep orange | prevents idle sleep **and** keeps the display on |
-- **Timed sessions** — keep awake for 30 min / 1 h / 2 h; the tooltip counts
-  down and the app disarms itself at the deadline.
+- **Timed sessions** — keep awake for 30 min / 1 h / 2 h, or pick **Custom…**
+  (1–1440 minutes). The timer applies to the **currently selected mode** (or the
+  last one you armed). While it runs, the remaining time ticks live right next
+  to the cup (`12:34`, or `1:23:45`) and in the menu header; the app disarms
+  itself at the deadline.
+- **Agent online lights** — the menu shows which coding agents are currently
+  running, each with its own color dot: 🟠 Claude · 🟢 Codex · 🔵 WorkBuddy ·
+  🟣 ZCode · 🟠 OpenCode. Online = lit; offline = the row is hidden entirely.
+  Detected by scanning the process table (basename match, case-insensitive) —
+  fresh on every menu open, background-refreshed every 60 s.
 - **Global hotkey** — `Ctrl+Alt+C` cycles through the three modes from any app.
-- **Auto: watch agents** *(opt-in)* — arms Idle + Display while a coding agent
-  CLI is running (`claude`, `codex`, `aider`, `goose`, `gemini`, `qwen`,
-  `cursor-agent`, `opencode`, `copilot`), disarms when they exit.
+- **Auto: watch agents** *(opt-in)* — arms Idle + Display while any of the five
+  watched agents (Claude, Codex, WorkBuddy, ZCode, OpenCode) is running, and
+  disarms shortly after they all exit.
 - **Launch at Login** — plain toggle in the menu (LaunchAgent-based).
 - **中英双语** — “语言：中文 / Language: English” 菜单项一键切换中英文 UI
   (菜单、tooltip、倒计时)，选择持久化。Bilingual menu/tooltip/countdown with a
@@ -101,8 +109,8 @@ using `sleep` as a stand-in for `caffeinate`. The GUI layer is thin: an
 src/
   main.rs         NSApp setup, status item + menu, action callbacks (define_class!)
   supervisor.rs   caffeinate child-process lifecycle (spawn / kill / reap)
-  state.rs        Mode enum + JSON persistence
-  icon.rs         SF Symbol + per-mode hierarchical color
+  state.rs        Mode enum, config persistence, agent process detection
+  icon.rs         SF Symbol cup + per-mode colors + agent online dots
 make-app.sh       Build the .app bundle and generate the app icon
 resources/        Generated icon assets (AppIcon.icns)
 ```

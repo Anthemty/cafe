@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-13
+
+### Added
+- **Agent 在线指示灯** — 菜单内实时显示当前在线的编码 agent:Claude(珊瑚橙)、
+  Codex(绿)、WorkBuddy(蓝)、ZCode(紫)、OpenCode(琥珀)。在线点亮彩点 + 名称,
+  不在线整行隐藏;一个都不在线时菜单与旧版完全一致。每次打开菜单即时扫描,
+  后台每 60 秒刷新一次。
+- **自定义定时** — 定时区新增"自定义…/Custom…",弹窗输入分钟数(1–1440),输入框
+  加宽到可用尺寸;定时作用于**当前选定的模式**(未激活时用上次手选的模式)。
+- **菜单栏倒计时** — 定时会话期间,咖啡杯图标旁直接显示 `m:ss` / `h:mm:ss` 每秒
+  跳动(计时器注册在 `NSRunLoopCommonModes`,菜单打开着也实时刷新),菜单头部
+  与 tooltip 同步显示。
+- **Panic 日志** — 菜单栏 app 无可见 stderr,panic 钩子把崩溃信息写入
+  `~/Library/Application Support/cafe/panic.log`,便于排查。
+
+### Changed
+- 自动监测的 agent 名单收敛为上述 5 个(与在线灯一致),移除 gemini/qwen/aider/
+  copilot 等误报率较高的通配匹配。
+- 后台 agent 扫描频率从 5 秒改为 **60 秒**(打开菜单仍是即时扫描,只影响 auto
+  模式的反应延迟)。
+- `last_mode` 只记录"武装过"的模式,不会因回到 Off 而被清空,定时自 Off 启动时
+  有可靠的默认值。
+
+### Fixed
+- **自定义定时闪退** — 旧实现持有 `RefCell::borrow_mut` 期间调用 `runModal()`,
+  模态循环中 1 秒 tick 触发 `borrow()` → `BorrowMutError` panic。弹窗逻辑已
+  抽为不持有任何状态借用的独立函数。
+- **agent 检测永远为空** — 从 pgrep 时代照搬的 `.stdout(Stdio::null())` 把
+  `ps` 的输出重定向进了 /dev/null,app 内检测恒为"全离线"(独立测试脚本无此
+  设置,故此前未被发现)。已移除并用进程内诊断日志验证。
+
 ## [0.2.1] - 2026-08-16
 
 ### Added
@@ -67,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Supervisor` guarantees no leaked `caffeinate` process: every mode switch and app exit (including `Drop`) kills + reaps the child.
 - `.app` bundle packaging via `make-app.sh`, including a generated coffee-cup app icon (`resources/AppIcon.icns`).
 
-[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Anthemty/cafe/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Anthemty/cafe/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Anthemty/cafe/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Anthemty/cafe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Anthemty/cafe/releases/tag/v0.1.0

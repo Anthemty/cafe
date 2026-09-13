@@ -17,8 +17,9 @@
 use std::cell::RefCell;
 
 use objc2::rc::Retained;
-use objc2_app_kit::{NSColor, NSImage, NSImageSymbolConfiguration};
-use objc2_foundation::NSString;
+use objc2::AnyThread;
+use objc2_app_kit::{NSBezierPath, NSColor, NSImage, NSImageSymbolConfiguration};
+use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
 use crate::state::Mode;
 
@@ -87,6 +88,59 @@ impl IconCache {
 }
 
 impl Default for IconCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Per-agent identity colors (sRGB), one entry per `state::AGENTS`:
+/// Claude coral, Codex green, WorkBuddy blue, ZCode purple, OpenCode amber.
+const AGENT_COLORS: &[(f64, f64, f64)] = &[
+    (0.85, 0.47, 0.34),
+    (0.06, 0.64, 0.50),
+    (0.23, 0.51, 0.96),
+    (0.55, 0.36, 0.96),
+    (0.96, 0.62, 0.04),
+];
+
+/// Render a filled dot in `color` — the "online" glyph for an agent menu row.
+#[allow(deprecated)] // lockFocus(Flipped) is fine for a fixed-size menu glyph
+fn render_dot(color: (f64, f64, f64)) -> Option<Retained<NSImage>> {
+    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(16.0, 16.0));
+    image.lockFocusFlipped(true);
+    NSColor::colorWithSRGBRed_green_blue_alpha(color.0, color.1, color.2, 1.0).set();
+    let dot = NSRect::new(NSPoint::new(3.0, 3.0), NSSize::new(10.0, 10.0));
+    NSBezierPath::bezierPathWithOvalInRect(dot).fill();
+    image.unlockFocus();
+    Some(image)
+}
+
+/// Cache of the five agent dots, rendered once each.
+pub struct AgentIcons {
+    icons: RefCell<Vec<Option<Retained<NSImage>>>>,
+}
+
+impl AgentIcons {
+    pub fn new() -> Self {
+        Self {
+            icons: RefCell::new(vec![None; AGENT_COLORS.len()]),
+        }
+    }
+
+    /// Get (rendering on first use) the dot for agent `index` (AGENTS order).
+    pub fn get(&self, index: usize) -> Option<Retained<NSImage>> {
+        let mut icons = self.icons.borrow_mut();
+        if index >= icons.len() {
+            return None;
+        }
+        if icons[index].is_none() {
+            icons[index] = render_dot(AGENT_COLORS[index]);
+        }
+        icons[index].clone()
+    }
+}
+
+impl Default for AgentIcons {
     fn default() -> Self {
         Self::new()
     }
