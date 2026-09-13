@@ -1,11 +1,15 @@
 # cafe
 
+English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange.svg)](https://www.rust-lang.org)
 [![macOS](https://img.shields.io/badge/platform-macOS%2011%2B-blue.svg)](https://www.apple.com/macos)
 [![Made with objc2](https://img.shields.io/badge/built%20with-objc2-9cf)](https://docs.rs/objc2)
 
-> A tiny macOS menu bar keep-awake tool for agent coding sessions.
+> Keeps your Mac from dozing off — that's why it's called **cafe**. ☕
+
+A tiny macOS menu bar keep-awake tool for agent coding sessions.
 
 Tired of your Mac dozing off while a long-running coding agent does its thing?
 **cafe** parks a coffee cup in your menu bar. Click it, pick a mode, and your
@@ -33,7 +37,7 @@ your menu bar.
   itself at the deadline.
 - **Agent online lights** — the menu shows which coding agents are currently
   running, each with its own color dot: 🟠 Claude · 🟢 Codex · 🔵 WorkBuddy ·
-  🟣 ZCode · 🟠 OpenCode. Online = lit; offline = the row is hidden entirely.
+  🟣 ZCode · 🟡 OpenCode. Online = lit; offline = the row is hidden entirely.
   Detected by scanning the process table (basename match, case-insensitive) —
   fresh on every menu open, background-refreshed every 60 s.
 - **Global hotkey** — `Ctrl+Alt+C` cycles through the three modes from any app.
